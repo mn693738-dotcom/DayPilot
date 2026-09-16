@@ -27,7 +27,10 @@ pnpm-debug.log*
 
 # Local tooling and editor files
 tools/
+# Keep shared VS Code workspace configuration
 .vscode/*
+!.vscode/launch.json
+!.vscode/tasks.json
 !.vscode/extensions.json
 .idea/
 .DS_Store
