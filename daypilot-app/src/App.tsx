@@ -24,6 +24,8 @@ import {
   NotebookPen,
 } from 'lucide-react'
 
+const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
+
 type Priority = 'High' | 'Medium' | 'Low'
 
 type Task = {
@@ -401,7 +403,7 @@ function App() {
     setEmailError('')
 
     try {
-      const response = await fetch('/api/auth/send-otp', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/send-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email: cleanEmail }),
@@ -429,7 +431,7 @@ function App() {
     setEmailError('')
 
     try {
-      const response = await fetch('/api/auth/verify-otp', {
+      const response = await fetch(`${API_BASE_URL}/api/auth/verify-otp`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, code: otp.trim() }),
