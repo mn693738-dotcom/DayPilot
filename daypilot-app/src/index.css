@@ -2038,11 +2038,12 @@ button:active:not(:disabled) {
   .profile-hero {
     align-items: flex-start;
     flex-direction: column;
-    padding-top: 68px;
+    padding-top: 82px;
   }
 
   .profile-status {
     align-self: flex-start;
+    margin-top: 4px;
   }
 
   .streak-card,

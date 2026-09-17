@@ -188,6 +188,7 @@ function App() {
     return saved ? JSON.parse(saved) : []
   })
   const [activeStreak, setActiveStreak] = useState(0)
+  const [activeDaysThisMonth, setActiveDaysThisMonth] = useState(0)
   const [theme, setTheme] = useState<'dark' | 'light'>(() => {
     const savedTheme = window.localStorage.getItem('daypilot-theme')
     return savedTheme === 'light' ? 'light' : 'dark'
@@ -450,9 +451,12 @@ function App() {
     const today = getDateKey(now, selectedLocation.timeZone)
     const joinedDates = [...new Set([...savedDates, today])]
     const streak = getActiveStreak(joinedDates, today)
+    const monthPrefix = today.slice(0, 7)
+    const daysThisMonth = joinedDates.filter((date) => date.startsWith(monthPrefix)).length
 
     window.localStorage.setItem(storageKey, JSON.stringify(joinedDates))
     setActiveStreak(streak)
+    setActiveDaysThisMonth(daysThisMonth)
     setLocationConfirmed(true)
   }
 
@@ -1089,7 +1093,7 @@ function App() {
               </article>
               <article className="panel profile-metric-card">
                 <span className="profile-label">Active days</span>
-                <strong>28</strong>
+                <strong>{activeDaysThisMonth}</strong>
                 <p>Days active this month</p>
               </article>
               <article className="panel profile-metric-card">
