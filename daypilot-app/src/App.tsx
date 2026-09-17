@@ -302,6 +302,18 @@ function App() {
     setTheme((current) => current === 'dark' ? 'light' : 'dark')
   }
 
+  const logOff = () => {
+    setIsLoggedIn(false)
+    setLocationConfirmed(false)
+    setEmailVerified(false)
+    setOtpSent(false)
+    setEmail('')
+    setOtp('')
+    setPassword('')
+    setLoginStep('username')
+    setActiveNav('home')
+  }
+
   const openQuickAddEditor = (type: QuickAddType) => {
     setQuickAddOpen(false)
     setQuickAddType(type)
@@ -1080,6 +1092,9 @@ function App() {
                 <span className="status-dot" />
                 Active today
               </div>
+              <button className="profile-logoff-button" type="button" onClick={logOff}>
+                Log off
+              </button>
             </section>
 
             <section className="profile-stat-grid">

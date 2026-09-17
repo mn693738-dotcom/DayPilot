@@ -1020,6 +1020,23 @@ button:active:not(:disabled) {
   font-size: 0.78rem;
 }
 
+.profile-logoff-button {
+  align-self: flex-start;
+  margin-top: 28px;
+  padding: 8px 12px;
+  border: 1px solid rgba(201, 133, 120, 0.34);
+  border-radius: 999px;
+  background: rgba(201, 133, 120, 0.1);
+  color: #e4aaa0;
+  font-size: 0.76rem;
+  font-weight: 650;
+  cursor: pointer;
+}
+
+.profile-logoff-button:hover {
+  background: rgba(201, 133, 120, 0.22);
+}
+
 .status-dot {
   width: 8px;
   height: 8px;
@@ -2049,6 +2066,10 @@ button:active:not(:disabled) {
   .profile-status {
     align-self: flex-start;
     margin-top: 4px;
+  }
+
+  .profile-logoff-button {
+    margin-top: 0;
   }
 
   .streak-card,
