@@ -22,6 +22,11 @@ import {
   UserRound,
   Moon,
   NotebookPen,
+  Activity,
+  LogOut,
+  Settings,
+  ShieldCheck,
+  Users,
 } from 'lucide-react'
 
 const API_BASE_URL = (import.meta.env.VITE_API_URL || '').replace(/\/$/, '')
@@ -156,6 +161,15 @@ function App() {
   })
   const [search, setSearch] = useState('')
   const [activeNav, setActiveNav] = useState('home')
+  const [adminClickTimes, setAdminClickTimes] = useState<number[]>([])
+  const [adminLoginOpen, setAdminLoginOpen] = useState(false)
+  const [adminAuthenticated, setAdminAuthenticated] = useState(false)
+  const [adminUsername, setAdminUsername] = useState('')
+  const [adminPassword, setAdminPassword] = useState('')
+  const [adminError, setAdminError] = useState('')
+  const [adminLoading, setAdminLoading] = useState(false)
+  const [adminToken, setAdminToken] = useState('')
+  const [adminOverview, setAdminOverview] = useState<{ totalUsers: number; activeUsers: number; completedTasks: number; totalTasks: number; recentActivity: Array<{ title: string; created_at: string }> } | null>(null)
   const [dateReminders, setDateReminders] = useState<DateReminder[]>(() => {
     const saved = window.localStorage.getItem('daypilot-reminders')
     return saved ? JSON.parse(saved) : []
@@ -300,6 +314,103 @@ function App() {
 
   const toggleTheme = () => {
     setTheme((current) => current === 'dark' ? 'light' : 'dark')
+  }
+
+  const handleAdminTrigger = () => {
+    const now = Date.now()
+    const recentClicks = [...adminClickTimes.filter((time) => now - time < 1200), now]
+    setAdminClickTimes(recentClicks)
+    if (recentClicks.length >= 4) {
+      setAdminClickTimes([])
+      setAdminLoginOpen(true)
+      setAdminError('')
+    }
+  }
+
+  const submitAdminLogin = async (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault()
+    setAdminLoading(true)
+    setAdminError('')
+    try {
+      const response = await fetch(`${API_BASE_URL}/api/admin/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: adminUsername, password: adminPassword }),
+      })
+      const result = await response.json() as { error?: string; token?: string; username?: string }
+      if (!response.ok || !result.token) throw new Error('Invalid admin credentials')
+      setAdminToken(result.token)
+      setAdminAuthenticated(true)
+      setAdminLoginOpen(false)
+      setAdminPassword('')
+    } catch {
+      setAdminError('Invalid admin credentials')
+    } finally {
+      setAdminLoading(false)
+    }
+  }
+
+  const loadAdminOverview = async () => {
+    const response = await fetch(`${API_BASE_URL}/api/admin/overview`, {
+      headers: { Authorization: `Bearer ${adminToken}` },
+    })
+    if (!response.ok) throw new Error('Unable to load admin overview')
+    setAdminOverview(await response.json() as typeof adminOverview)
+  }
+
+  useEffect(() => {
+    if (adminAuthenticated && adminToken) {
+      void loadAdminOverview()
+    }
+  }, [adminAuthenticated, adminToken])
+
+  const adminOverlay = adminLoginOpen ? (
+    <div className="admin-backdrop" role="presentation">
+      <section className="admin-login-modal" role="dialog" aria-modal="true" aria-labelledby="admin-login-title">
+        <button className="quick-add-close" type="button" aria-label="Close admin login" onClick={() => setAdminLoginOpen(false)}>×</button>
+        <div className="admin-modal-icon"><ShieldCheck size={22} /></div>
+        <div className="eyebrow">Restricted access</div>
+        <h2 id="admin-login-title">Admin login</h2>
+        <p>Sign in with an authorized administrator account.</p>
+        <form className="login-form" onSubmit={submitAdminLogin}>
+          <label htmlFor="admin-username">Username</label>
+          <input id="admin-username" value={adminUsername} onChange={(event) => setAdminUsername(event.target.value)} autoComplete="username" />
+          <label htmlFor="admin-password">Password</label>
+          <input id="admin-password" type="password" value={adminPassword} onChange={(event) => setAdminPassword(event.target.value)} autoComplete="current-password" />
+          {adminError && <small role="alert" className="admin-error">{adminError}</small>}
+          <button className="login-button" type="submit" disabled={adminLoading || !adminUsername || !adminPassword}>
+            {adminLoading ? 'Signing in...' : 'Login'}
+          </button>
+        </form>
+      </section>
+    </div>
+  ) : null
+
+  if (adminAuthenticated) {
+    return (
+      <div className="admin-shell">
+        <header className="admin-header">
+          <div className="brand-row">
+            <button type="button" className="brand-mark admin-trigger" onClick={handleAdminTrigger}>D</button>
+            <div><div className="brand-title">DayPilot Admin</div><div className="brand-subtitle">Control center</div></div>
+          </div>
+          <button className="ghost-button" type="button" onClick={() => { setAdminAuthenticated(false); setAdminToken('') }}><LogOut size={15} /> Logout</button>
+        </header>
+        <main className="admin-main">
+          <div className="admin-welcome"><div className="eyebrow">Administration</div><h1>Welcome, {adminUsername}</h1><p>Monitor your DayPilot workspace from one secure place.</p></div>
+          <section className="admin-stat-grid">
+            <article className="panel admin-stat"><Users size={19} /><span>Total users</span><strong>{adminOverview?.totalUsers ?? '—'}</strong></article>
+            <article className="panel admin-stat"><Activity size={19} /><span>Active users</span><strong>{adminOverview?.activeUsers ?? '—'}</strong></article>
+            <article className="panel admin-stat"><ShieldCheck size={19} /><span>Daily streak tasks</span><strong>{adminOverview ? `${adminOverview.completedTasks}/${adminOverview.totalTasks}` : '—'}</strong></article>
+          </section>
+          <section className="panel admin-activity">
+            <div className="section-heading"><h3>Recent activity</h3><Settings size={17} /></div>
+            {adminOverview?.recentActivity.length ? adminOverview.recentActivity.map((item, index) => <div className="admin-activity-row" key={`${item.created_at}-${index}`}><Activity size={15} /><span>{item.title}</span><small>{new Date(item.created_at).toLocaleString()}</small></div>) : <p className="admin-empty">No recent activity yet.</p>}
+          </section>
+        </main>
+        {adminOverlay}
+      </div>
+    )
   }
 
   const logOff = () => {
@@ -539,7 +650,7 @@ function App() {
         <div className="login-glow login-glow-two" />
         <section className="login-card">
           <div className="login-brand">
-            <div className="brand-mark">D</div>
+            <button type="button" className="brand-mark admin-trigger" onClick={handleAdminTrigger}>D</button>
             <div>
               <div className="brand-title">DayPilot</div>
               <div className="brand-subtitle">Personal cockpit</div>
@@ -603,6 +714,7 @@ function App() {
             <span>A calmer, clearer way to move through your day.</span>
           </div>
         </section>
+        {adminOverlay}
       </main>
     )
   }
@@ -614,7 +726,7 @@ function App() {
         <div className="login-glow login-glow-two" />
         <section className="login-card" style={{ maxWidth: '720px', width: '100%' }}>
           <div className="login-brand">
-            <div className="brand-mark">D</div>
+            <button type="button" className="brand-mark admin-trigger" onClick={handleAdminTrigger}>D</button>
             <div>
               <div className="brand-title">DayPilot</div>
               <div className="brand-subtitle">Personal cockpit</div>
@@ -682,6 +794,7 @@ function App() {
             <ChevronRight size={18} />
           </button>
         </section>
+        {adminOverlay}
       </main>
     )
   }
@@ -693,7 +806,7 @@ function App() {
         <div className="login-glow login-glow-two" />
         <section className="login-card">
           <div className="login-brand">
-            <div className="brand-mark">D</div>
+            <button type="button" className="brand-mark admin-trigger" onClick={handleAdminTrigger}>D</button>
             <div>
               <div className="brand-title">DayPilot</div>
               <div className="brand-subtitle">Personal cockpit</div>
@@ -727,6 +840,7 @@ function App() {
             </button>
           </form>
         </section>
+        {adminOverlay}
       </main>
     )
   }
@@ -738,7 +852,7 @@ function App() {
         <div className="login-glow login-glow-two" />
         <section className="login-card">
           <div className="login-brand">
-            <div className="brand-mark">D</div>
+            <button type="button" className="brand-mark admin-trigger" onClick={handleAdminTrigger}>D</button>
             <div>
               <div className="brand-title">DayPilot</div>
               <div className="brand-subtitle">Personal cockpit</div>
@@ -778,6 +892,7 @@ function App() {
             Use a different email
           </button>
         </section>
+        {adminOverlay}
       </main>
     )
   }
@@ -786,7 +901,7 @@ function App() {
     <div className="daypilot-shell session-enter">
       <aside className="sidebar">
         <div className="brand-row">
-          <div className="brand-mark">D</div>
+          <button type="button" className="brand-mark admin-trigger" onClick={handleAdminTrigger}>D</button>
           <div>
             <div className="brand-title">DayPilot</div>
             <div className="brand-subtitle">Personal cockpit</div>
@@ -1406,6 +1521,8 @@ function App() {
         </main>
         )}
       </div>
+
+      {adminOverlay}
 
       {quickAddOpen && (
         <div className="quick-add-backdrop" role="presentation" onMouseDown={() => setQuickAddOpen(false)}>
