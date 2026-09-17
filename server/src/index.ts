@@ -11,6 +11,54 @@ dotenv.config();
 const PORT = process.env.PORT || 4000;
 const otpStore = new Map<string, { code: string; expiresAt: number }>();
 const adminSessions = new Map<string, { username: string; expiresAt: number }>();
+const accountSessions = new Map<string, { accountId: string; expiresAt: number }>();
+
+const supabaseRequest = async <T>(path: string, init?: RequestInit): Promise<T> => {
+  const url = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key) throw new Error("Supabase account storage is not configured");
+  const response = await fetch(`${url}/rest/v1/${path}`, {
+    ...init,
+    headers: {
+      apikey: key,
+      Authorization: `Bearer ${key}`,
+      "Content-Type": "application/json",
+      Prefer: "return=representation",
+      ...init?.headers,
+    },
+  });
+  if (!response.ok) throw new Error(`Supabase request failed: ${response.status}`);
+  return response.status === 204 ? (undefined as T) : await response.json() as T;
+};
+
+const hashPassword = async (password: string) => {
+  const salt = crypto.randomBytes(16).toString("hex");
+  const key = await new Promise<Buffer>((resolve, reject) => {
+    crypto.scrypt(password, salt, 64, (error, derivedKey) => error ? reject(error) : resolve(derivedKey));
+  });
+  return `${salt}:${key.toString("hex")}`;
+};
+
+const verifyPassword = async (password: string, storedHash: string) => {
+  const [salt, encodedKey] = storedHash.split(":");
+  if (!salt || !encodedKey) return false;
+  const key = await new Promise<Buffer>((resolve, reject) => {
+    crypto.scrypt(password, salt, 64, (error, derivedKey) => error ? reject(error) : resolve(derivedKey));
+  });
+  const expected = Buffer.from(encodedKey, "hex");
+  return expected.length === key.length && crypto.timingSafeEqual(expected, key);
+};
+
+const accountSession = (req: express.Request, res: express.Response) => {
+  const token = req.header("authorization")?.replace(/^Bearer\s+/i, "");
+  const session = token ? accountSessions.get(token) : undefined;
+  if (!session || session.expiresAt < Date.now()) {
+    if (token) accountSessions.delete(token);
+    res.status(401).json({ error: "Account authentication required" });
+    return null;
+  }
+  return { ...session, token };
+};
 
 const verifyAdminPassword = async (password: string) => {
   const storedHash = process.env.ADMIN_PASSWORD_HASH;
@@ -45,6 +93,65 @@ async function start() {
   const db = await initDb();
 
   app.get("/api/health", (req, res) => res.json({ status: "ok" }));
+
+  app.post("/api/account/login", async (req, res) => {
+    const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
+    const password = typeof req.body?.password === "string" ? req.body.password : "";
+    if (!/^[a-zA-Z0-9_]{3,32}$/.test(username) || password.length < 8) {
+      res.status(400).json({ error: "Username or password is invalid" });
+      return;
+    }
+
+    try {
+      type Account = { id: string; username: string; password_hash: string };
+      const accounts = await supabaseRequest<Account[]>(`accounts?username=eq.${encodeURIComponent(username)}&select=id,username,password_hash&limit=1`);
+      let account = accounts[0];
+      if (account && !(await verifyPassword(password, account.password_hash))) {
+        res.status(401).json({ error: "Invalid username or password" });
+        return;
+      }
+      if (!account) {
+        const created = await supabaseRequest<Account[]>("accounts", {
+          method: "POST",
+          body: JSON.stringify({ username, password_hash: await hashPassword(password), last_login: new Date().toISOString(), last_active_at: new Date().toISOString() }),
+        });
+        account = created[0];
+        await supabaseRequest("account_data", { method: "POST", body: JSON.stringify({ account_id: account.id, data: {} }) });
+      } else {
+        await supabaseRequest(`accounts?id=eq.${account.id}`, {
+          method: "PATCH",
+          body: JSON.stringify({ last_login: new Date().toISOString(), last_active_at: new Date().toISOString() }),
+        });
+      }
+      const token = crypto.randomBytes(32).toString("hex");
+      accountSessions.set(token, { accountId: account.id, expiresAt: Date.now() + 30 * 24 * 60 * 60 * 1000 });
+      res.json({ token, username: account.username });
+    } catch (error) {
+      console.error("Account login failed:", error);
+      res.status(503).json({ error: "Cloud account storage is unavailable" });
+    }
+  });
+
+  app.get("/api/account/data", async (req, res) => {
+    const session = accountSession(req, res);
+    if (!session) return;
+    const rows = await supabaseRequest<Array<{ data: Record<string, unknown> }>>(`account_data?account_id=eq.${session.accountId}&select=data&limit=1`);
+    res.json(rows[0]?.data || {});
+  });
+
+  app.put("/api/account/data", async (req, res) => {
+    const session = accountSession(req, res);
+    if (!session) return;
+    await supabaseRequest(`account_data?account_id=eq.${session.accountId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ data: req.body || {}, updated_at: new Date().toISOString() }),
+    });
+    await supabaseRequest(`accounts?id=eq.${session.accountId}`, {
+      method: "PATCH",
+      body: JSON.stringify({ last_active_at: new Date().toISOString() }),
+    });
+    res.json({ saved: true });
+  });
 
   app.post("/api/admin/login", async (req, res) => {
     const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";

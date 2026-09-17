@@ -209,6 +209,9 @@ function App() {
   })
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
+  const [loginError, setLoginError] = useState('')
+  const [accountToken, setAccountToken] = useState('')
+  const [accountReady, setAccountReady] = useState(false)
   const [loginStep, setLoginStep] = useState<'username' | 'session-choice' | 'password'>('username')
   const [sessionMode, setSessionMode] = useState<'temporary' | 'permanent' | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
@@ -245,6 +248,18 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem('daypilot-tasks', JSON.stringify(tasks))
   }, [tasks])
+
+  useEffect(() => {
+    if (!accountToken || !accountReady) return
+    const timer = window.setTimeout(() => {
+      void fetch(`${API_BASE_URL}/api/account/data`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accountToken}` },
+        body: JSON.stringify({ tasks, dateReminders, importantReminders, notes, shoppingItems, theme }),
+      })
+    }, 500)
+    return () => window.clearTimeout(timer)
+  }, [accountToken, accountReady, dateReminders, importantReminders, notes, shoppingItems, tasks, theme])
 
   useEffect(() => {
     window.localStorage.setItem('daypilot-reminders', JSON.stringify(dateReminders))
@@ -422,6 +437,9 @@ function App() {
     setEmail('')
     setOtp('')
     setPassword('')
+    setLoginError('')
+    setAccountToken('')
+    setAccountReady(false)
     setLoginStep('username')
     setSessionMode(null)
     setActiveNav('home')
@@ -545,7 +563,7 @@ function App() {
     { label: 'Checklist', icon: Check, detail: 'Create a simple checklist' },
   ]
 
-  const handleLogin = (event: FormEvent<HTMLFormElement>) => {
+  const handleLogin = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault()
     const cleanUsername = username.trim()
 
@@ -566,7 +584,32 @@ function App() {
     if (!cleanUsername || !password) return
 
     setIsLoggingIn(true)
-    window.setTimeout(() => {
+    setLoginError('')
+    try {
+      if (sessionMode === 'permanent') {
+        const response = await fetch(`${API_BASE_URL}/api/account/login`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: cleanUsername, password }),
+        })
+        const result = await response.json() as { error?: string; token?: string }
+        if (!response.ok || !result.token) throw new Error(result.error || 'Unable to create cloud account')
+        const dataResponse = await fetch(`${API_BASE_URL}/api/account/data`, {
+          headers: { Authorization: `Bearer ${result.token}` },
+        })
+        if (!dataResponse.ok) throw new Error('Unable to load cloud account data')
+        const data = await dataResponse.json() as Partial<{ tasks: Task[]; dateReminders: DateReminder[]; importantReminders: ImportantReminder[]; notes: typeof initialNotes; shoppingItems: typeof initialShoppingItems; theme: 'dark' | 'light' }>
+        if (data.tasks) setTasks(data.tasks)
+        if (data.dateReminders) setDateReminders(data.dateReminders)
+        if (data.importantReminders) setImportantReminders(data.importantReminders)
+        if (data.notes) setNotes(data.notes)
+        if (data.shoppingItems) setShoppingItems(data.shoppingItems)
+        if (data.theme) setTheme(data.theme)
+        setAccountToken(result.token)
+        setAccountReady(true)
+      } else {
+        await new Promise((resolve) => window.setTimeout(resolve, 650))
+      }
       setUsername(cleanUsername)
       setIsLoggedIn(true)
       setLocationConfirmed(false)
@@ -578,7 +621,10 @@ function App() {
         window.localStorage.removeItem('daypilot-username')
       }
       setIsLoggingIn(false)
-    }, 650)
+    } catch (error) {
+      setLoginError(error instanceof Error ? error.message : 'Unable to sign in')
+      setIsLoggingIn(false)
+    }
   }
 
   const continueAfterLocation = () => {
@@ -723,6 +769,7 @@ function App() {
                 </div>
               </>
             )}
+            {loginError && <small role="alert" className="admin-error">{loginError}</small>}
             <button className="login-button" type="submit" disabled={loginStep === 'username' ? !username.trim() : loginStep === 'session-choice' ? !sessionMode : !password || isLoggingIn}>
               <span>{isLoggingIn ? 'Preparing your day...' : loginStep === 'username' || loginStep === 'session-choice' ? 'Continue' : 'Log in'}</span>
               {isLoggingIn ? <span className="login-spinner" /> : <ChevronRight size={18} />}
