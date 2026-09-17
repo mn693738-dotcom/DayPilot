@@ -209,7 +209,8 @@ function App() {
   })
   const [username, setUsername] = useState('')
   const [password, setPassword] = useState('')
-  const [loginStep, setLoginStep] = useState<'username' | 'password'>('username')
+  const [loginStep, setLoginStep] = useState<'username' | 'session-choice' | 'password'>('username')
+  const [sessionMode, setSessionMode] = useState<'temporary' | 'permanent' | null>(null)
   const [isLoggedIn, setIsLoggedIn] = useState(false)
   const [isLoggingIn, setIsLoggingIn] = useState(false)
   const [selectedLocation, setSelectedLocation] = useState<LocationOption | null>(null)
@@ -422,6 +423,7 @@ function App() {
     setOtp('')
     setPassword('')
     setLoginStep('username')
+    setSessionMode(null)
     setActiveNav('home')
   }
 
@@ -551,6 +553,12 @@ function App() {
 
     if (loginStep === 'username') {
       if (!cleanUsername) return
+      setLoginStep('session-choice')
+      return
+    }
+
+    if (loginStep === 'session-choice') {
+      if (!sessionMode) return
       setLoginStep('password')
       return
     }
@@ -562,6 +570,13 @@ function App() {
       setUsername(cleanUsername)
       setIsLoggedIn(true)
       setLocationConfirmed(false)
+      if (sessionMode === 'permanent') {
+        window.localStorage.setItem('daypilot-login-mode', 'permanent')
+        window.localStorage.setItem('daypilot-username', cleanUsername)
+      } else {
+        window.localStorage.removeItem('daypilot-login-mode')
+        window.localStorage.removeItem('daypilot-username')
+      }
       setIsLoggingIn(false)
     }, 650)
   }
@@ -658,9 +673,9 @@ function App() {
           </div>
 
           <div className="login-heading">
-            <div className="eyebrow">{loginStep === 'username' ? 'Your day, elevated' : 'Welcome back'}</div>
-            <h1>{loginStep === 'username' ? 'Welcome back.' : 'Enter your password.'}</h1>
-            <p>{loginStep === 'username' ? 'Enter your username to continue to your personal cockpit.' : `Enter the password for @${username.trim()}.`}</p>
+            <div className="eyebrow">{loginStep === 'username' ? 'Your day, elevated' : loginStep === 'session-choice' ? 'Choose your session' : 'Welcome back'}</div>
+            <h1>{loginStep === 'username' ? 'Welcome back.' : loginStep === 'session-choice' ? 'How should we remember you?' : 'Enter your password.'}</h1>
+            <p>{loginStep === 'username' ? 'Enter your username to continue to your personal cockpit.' : loginStep === 'session-choice' ? 'Choose a session type. You can change this the next time you log in.' : `Enter the password for @${username.trim()}.`}</p>
           </div>
 
           <form className="login-form" onSubmit={handleLogin}>
@@ -680,6 +695,17 @@ function App() {
                   />
                 </div>
               </>
+            ) : loginStep === 'session-choice' ? (
+              <div className="session-choice-list">
+                <button type="button" className={sessionMode === 'temporary' ? 'session-choice active' : 'session-choice'} onClick={() => setSessionMode('temporary')}>
+                  <strong>Temporary session</strong>
+                  <small>Sign out when this browser session ends.</small>
+                </button>
+                <button type="button" className={sessionMode === 'permanent' ? 'session-choice active' : 'session-choice'} onClick={() => setSessionMode('permanent')}>
+                  <strong>Permanent login</strong>
+                  <small>Keep this account remembered on this device.</small>
+                </button>
+              </div>
             ) : (
               <>
                 <label htmlFor="password">Password</label>
@@ -697,15 +723,15 @@ function App() {
                 </div>
               </>
             )}
-            <button className="login-button" type="submit" disabled={loginStep === 'username' ? !username.trim() : !password || isLoggingIn}>
-              <span>{isLoggingIn ? 'Preparing your day...' : loginStep === 'username' ? 'Continue' : 'Log in'}</span>
+            <button className="login-button" type="submit" disabled={loginStep === 'username' ? !username.trim() : loginStep === 'session-choice' ? !sessionMode : !password || isLoggingIn}>
+              <span>{isLoggingIn ? 'Preparing your day...' : loginStep === 'username' || loginStep === 'session-choice' ? 'Continue' : 'Log in'}</span>
               {isLoggingIn ? <span className="login-spinner" /> : <ChevronRight size={18} />}
             </button>
           </form>
 
-          {loginStep === 'password' && (
-            <button className="ghost-button" type="button" onClick={() => { setLoginStep('username'); setPassword('') }}>
-              Use a different username
+          {loginStep !== 'username' && (
+            <button className="ghost-button" type="button" onClick={() => { setLoginStep(loginStep === 'password' ? 'session-choice' : 'username'); setSessionMode(loginStep === 'password' ? sessionMode : null); setPassword('') }}>
+              {loginStep === 'password' ? 'Change session type' : 'Use a different username'}
             </button>
           )}
 
