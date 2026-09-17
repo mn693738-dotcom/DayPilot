@@ -173,6 +173,7 @@ function App() {
   const [shoppingName, setShoppingName] = useState('')
   const [shoppingPrice, setShoppingPrice] = useState('')
   const [selectedMode, setSelectedMode] = useState<(typeof modes)[number] | null>(null)
+  const [suggestionsVisible, setSuggestionsVisible] = useState(true)
   const [quickAddOpen, setQuickAddOpen] = useState(false)
   const [modesOpen, setModesOpen] = useState(false)
   const [assistantOpen, setAssistantOpen] = useState(false)
@@ -295,6 +296,29 @@ function App() {
     setDraftTitle('')
     setDraftDetails('')
     setActiveNav('add')
+  }
+
+  const handleSuggestionAction = (action: string) => {
+    if (action === 'Start focus') {
+      const studyMode = modes.find((mode) => mode.title === "I'm Studying")
+      if (studyMode) {
+        setSelectedMode(studyMode)
+        setActiveNav('mode-detail')
+      }
+      return
+    }
+
+    if (action === 'Review list') {
+      setActiveNav('tasks')
+      return
+    }
+
+    if (action === 'Prepare now') {
+      setQuickAddType('Task')
+      setDraftTitle('Prepare for tomorrow')
+      setDraftDetails('Pack everything needed for tomorrow morning.')
+      setActiveNav('add')
+    }
   }
 
   const saveQuickAdd = (event: FormEvent<HTMLFormElement>) => {
@@ -1325,20 +1349,27 @@ function App() {
             <div className="panel suggestion-panel">
               <div className="section-heading">
                 <h3>Smart suggestions</h3>
-                <button type="button" className="ghost-button">Dismiss all</button>
+                {suggestionsVisible && <button type="button" className="ghost-button" onClick={(event) => { event.stopPropagation(); setSuggestionsVisible(false) }}>Dismiss all</button>}
               </div>
-              <div className="suggestion-list">
-                {suggestions.map((suggestion) => (
-                  <div key={suggestion.title} className="suggestion-item">
-                    <div className="suggestion-icon"><Sparkles size={14} /></div>
-                    <div>
-                      <strong>{suggestion.title}</strong>
-                      <small>{suggestion.detail}</small>
+              {suggestionsVisible ? (
+                <div className="suggestion-list">
+                  {suggestions.map((suggestion) => (
+                    <div key={suggestion.title} className="suggestion-item">
+                      <div className="suggestion-icon"><Sparkles size={14} /></div>
+                      <div>
+                        <strong>{suggestion.title}</strong>
+                        <small>{suggestion.detail}</small>
+                      </div>
+                      <button type="button" onClick={(event) => { event.stopPropagation(); handleSuggestionAction(suggestion.action) }}>{suggestion.action}</button>
                     </div>
-                    <button type="button">{suggestion.action}</button>
-                  </div>
-                ))}
-              </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="suggestion-empty">
+                  <small>Suggestions dismissed for this session.</small>
+                  <button type="button" className="ghost-button" onClick={() => setSuggestionsVisible(true)}>Show suggestions</button>
+                </div>
+              )}
             </div>
           </section>
         </main>
