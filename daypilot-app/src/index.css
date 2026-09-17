@@ -2038,7 +2038,12 @@ button:active:not(:disabled) {
   .profile-hero {
     align-items: flex-start;
     flex-direction: column;
-    padding-top: 82px;
+    padding-top: 24px;
+  }
+
+  .profile-back-button {
+    position: static;
+    align-self: flex-start;
   }
 
   .profile-status {
