@@ -70,10 +70,17 @@ const initialTasks: Task[] = [
   { id: 4, title: 'Review project brief', description: 'Finalize client notes', time: '7:15 PM', priority: 'High', category: 'Work', done: false },
 ]
 
-const initialReminders = [
-  { title: 'Science class', time: '2:00 PM', type: 'Event' },
-  { title: 'Pay electricity bill', time: '6:30 PM', type: 'Bill' },
-  { title: 'Study session', time: '8:00 PM', type: 'Focus' },
+type ImportantReminder = {
+  id: string
+  title: string
+  time: string
+  type: string
+}
+
+const initialReminders: ImportantReminder[] = [
+  { id: 'science-class', title: 'Science class', time: '2:00 PM', type: 'Event' },
+  { id: 'electricity-bill', title: 'Pay electricity bill', time: '6:30 PM', type: 'Bill' },
+  { id: 'study-session', title: 'Study session', time: '8:00 PM', type: 'Focus' },
 ]
 
 const initialNotes = [
@@ -150,6 +157,10 @@ function App() {
     const saved = window.localStorage.getItem('daypilot-reminders')
     return saved ? JSON.parse(saved) : []
   })
+  const [importantReminders, setImportantReminders] = useState<ImportantReminder[]>(() => {
+    const saved = window.localStorage.getItem('daypilot-important-reminders')
+    return saved ? JSON.parse(saved) : initialReminders
+  })
   const [reminderTitle, setReminderTitle] = useState('')
   const [reminderDate, setReminderDate] = useState('')
   const [reminderTime, setReminderTime] = useState('')
@@ -215,6 +226,10 @@ function App() {
     window.localStorage.setItem('daypilot-reminders', JSON.stringify(dateReminders))
   }, [dateReminders])
 
+  useEffect(() => {
+    window.localStorage.setItem('daypilot-important-reminders', JSON.stringify(importantReminders))
+  }, [importantReminders])
+
   const activeTimeZone = selectedLocation?.timeZone ?? Intl.DateTimeFormat().resolvedOptions().timeZone
   const formatTimeZone = (options: Intl.DateTimeFormatOptions) =>
     new Intl.DateTimeFormat('en-US', { ...options, timeZone: activeTimeZone }).format(now)
@@ -260,11 +275,11 @@ function App() {
     return [
       ...tasks.filter((task) => `${task.title} ${task.description}`.toLowerCase().includes(query)).map((task) => ({ type: 'Task', title: task.title, detail: task.category })),
       ...notes.filter((note) => `${note.title} ${note.content}`.toLowerCase().includes(query)).map((note) => ({ type: 'Note', title: note.title, detail: 'Pinned note' })),
-      ...initialReminders.filter((reminder) => reminder.title.toLowerCase().includes(query)).map((reminder) => ({ type: 'Reminder', title: reminder.title, detail: reminder.time })),
+      ...importantReminders.filter((reminder) => reminder.title.toLowerCase().includes(query)).map((reminder) => ({ type: 'Reminder', title: reminder.title, detail: reminder.time })),
       ...dateReminders.filter((reminder) => reminder.title.toLowerCase().includes(query)).map((reminder) => ({ type: 'Reminder', title: reminder.title, detail: `${reminder.date} • ${reminder.time}` })),
       ...shoppingItems.filter((item) => item.name.toLowerCase().includes(query)).map((item) => ({ type: 'Shopping', title: item.name, detail: item.price ? `₹${item.price}` : 'Item' })),
     ].slice(0, 6)
-  }, [dateReminders, search, tasks])
+  }, [dateReminders, importantReminders, search, tasks])
 
   const toggleTask = (id: number) => {
     setTasks((current) => current.map((task) => task.id === id ? { ...task, done: !task.done } : task))
@@ -354,6 +369,10 @@ function App() {
 
   const removeDateReminder = (id: number) => {
     setDateReminders((current) => current.filter((reminder) => reminder.id !== id))
+  }
+
+  const removeImportantReminder = (id: string) => {
+    setImportantReminders((current) => current.filter((reminder) => reminder.id !== id))
   }
 
   const quickAddItems = [
@@ -1193,14 +1212,15 @@ function App() {
                 <button type="button" className="ghost-button" onClick={() => document.getElementById('reminder-title')?.focus()}>Add reminder</button>
               </div>
               <div className="reminder-list">
-                {initialReminders.map((reminder) => (
-                  <div key={reminder.title} className="reminder-row">
+                {importantReminders.map((reminder) => (
+                  <div key={reminder.id} className="reminder-row">
                     <div className="reminder-icon"><Bell size={14} /></div>
                     <div>
                       <strong>{reminder.title}</strong>
                       <small>{reminder.time}</small>
                     </div>
                     <span className="reminder-tag">{reminder.type}</span>
+                    <button type="button" className="shopping-remove-button" onClick={() => removeImportantReminder(reminder.id)} aria-label={`Remove ${reminder.title}`}>×</button>
                   </div>
                 ))}
                 {dateReminders.map((reminder) => (
