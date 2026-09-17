@@ -293,6 +293,10 @@ function App() {
     setTasks((current) => current.map((task) => task.id === id ? { ...task, done: !task.done } : task))
   }
 
+  const removeTask = (id: number) => {
+    setTasks((current) => current.filter((task) => task.id !== id))
+  }
+
   const toggleTheme = () => {
     setTheme((current) => current === 'dark' ? 'light' : 'dark')
   }
@@ -1193,7 +1197,7 @@ function App() {
               <div className="task-list">
                 {tasks.map((task) => (
                   <div key={task.id} className={task.done ? 'task-row done' : 'task-row'}>
-                    <button className="check-button" type="button" onClick={() => toggleTask(task.id)}>
+                    <button className="check-button" type="button" onClick={() => toggleTask(task.id)} aria-label={task.done ? `Mark ${task.title} as incomplete` : `Mark ${task.title} as complete`}>
                       {task.done ? <Check size={14} /> : null}
                     </button>
                     <div className="task-main">
@@ -1204,6 +1208,7 @@ function App() {
                       <span className={`priority-badge ${priorityColors[task.priority]}`}>{task.priority}</span>
                       <span>{task.time}</span>
                     </div>
+                    <button type="button" className="shopping-remove-button" onClick={() => removeTask(task.id)} aria-label={`Remove ${task.title}`}>×</button>
                   </div>
                 ))}
               </div>
