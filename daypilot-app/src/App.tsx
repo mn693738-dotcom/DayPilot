@@ -150,7 +150,10 @@ const getActiveStreak = (dates: string[], today: string) => {
 }
 
 function App() {
-  const [tasks, setTasks] = useState(initialTasks)
+  const [tasks, setTasks] = useState<Task[]>(() => {
+    const saved = window.localStorage.getItem('daypilot-tasks')
+    return saved ? JSON.parse(saved) : initialTasks
+  })
   const [search, setSearch] = useState('')
   const [activeNav, setActiveNav] = useState('home')
   const [dateReminders, setDateReminders] = useState<DateReminder[]>(() => {
@@ -222,6 +225,10 @@ function App() {
   useEffect(() => {
     window.localStorage.setItem('daypilot-items', JSON.stringify(savedItems))
   }, [savedItems])
+
+  useEffect(() => {
+    window.localStorage.setItem('daypilot-tasks', JSON.stringify(tasks))
+  }, [tasks])
 
   useEffect(() => {
     window.localStorage.setItem('daypilot-reminders', JSON.stringify(dateReminders))
