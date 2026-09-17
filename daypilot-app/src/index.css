@@ -1192,7 +1192,7 @@ button:active:not(:disabled) {
 
 .admin-stat-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, 1fr);
   gap: 18px;
   margin: 34px 0 18px;
 }

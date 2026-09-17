@@ -146,9 +146,19 @@ async function start() {
       method: "PATCH",
       body: JSON.stringify({ data: req.body || {}, updated_at: new Date().toISOString() }),
     });
+    const body = req.body && typeof req.body === "object" ? req.body as Record<string, unknown> : {};
+    const tasks = Array.isArray(body.tasks) ? body.tasks as Array<{ done?: boolean }> : [];
+    const streak = typeof body.activeStreak === "number" ? body.activeStreak : 0;
+    const activeDaysThisMonth = typeof body.activeDaysThisMonth === "number" ? body.activeDaysThisMonth : 0;
+    const device = typeof body.device === "string" ? body.device : "unknown";
     await supabaseRequest(`accounts?id=eq.${session.accountId}`, {
       method: "PATCH",
-      body: JSON.stringify({ last_active_at: new Date().toISOString() }),
+      body: JSON.stringify({
+        last_active_at: new Date().toISOString(),
+        streak,
+        active_days_this_month: activeDaysThisMonth,
+        device,
+      }),
     });
     res.json({ saved: true });
   });
@@ -222,6 +232,31 @@ async function start() {
 
   app.get("/api/admin/overview", async (req, res) => {
     if (!requireAdmin(req, res)) return;
+
+    if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+      type Account = { username: string; streak: number; active_days_this_month: number; last_active_at: string | null; device: string | null };
+      type AccountData = { account_id: string; data: { tasks?: Array<{ done?: boolean }> }; updated_at: string };
+      const [accounts, dataRows] = await Promise.all([
+        supabaseRequest<Account[]>("accounts?select=username,streak,active_days_this_month,last_active_at,device&order=last_active_at.desc"),
+        supabaseRequest<AccountData[]>("account_data?select=account_id,data,updated_at&order=updated_at.desc&limit=20"),
+      ]);
+      const activeSince = Date.now() - 24 * 60 * 60 * 1000;
+      const recentActivity = dataRows.map((row) => ({
+        title: `${row.data.tasks?.filter((task) => task.done).length || 0} completed tasks synced`,
+        created_at: row.updated_at,
+      }));
+      res.json({
+        totalUsers: accounts.length,
+        activeUsers: accounts.filter((account) => account.last_active_at && Date.parse(account.last_active_at) >= activeSince).length,
+        averageStreak: accounts.length ? Math.round(accounts.reduce((sum, account) => sum + (account.streak || 0), 0) / accounts.length) : 0,
+        activeDays: accounts.reduce((sum, account) => sum + (account.active_days_this_month || 0), 0),
+        completedTasks: dataRows.reduce((sum, row) => sum + (row.data.tasks?.filter((task) => task.done).length || 0), 0),
+        totalTasks: dataRows.reduce((sum, row) => sum + (row.data.tasks?.length || 0), 0),
+        recentActivity,
+        devices: accounts.map((account) => ({ username: account.username, device: account.device || "unknown" })),
+      });
+      return;
+    }
 
     const [userCounts, taskCounts, recentActivity] = await Promise.all([
       db.get<{ total: number; active: number }>(

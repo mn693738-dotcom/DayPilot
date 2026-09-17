@@ -7,6 +7,9 @@ create table if not exists public.accounts (
   password_hash text not null,
   profile jsonb not null default '{}'::jsonb,
   preferences jsonb not null default '{}'::jsonb,
+  streak integer not null default 0,
+  active_days_this_month integer not null default 0,
+  device text,
   created_at timestamptz not null default now(),
   last_login timestamptz,
   last_active_at timestamptz
@@ -27,3 +30,7 @@ create table if not exists public.account_sessions (
 alter table public.accounts enable row level security;
 alter table public.account_data enable row level security;
 alter table public.account_sessions enable row level security;
+
+alter table public.accounts add column if not exists streak integer not null default 0;
+alter table public.accounts add column if not exists active_days_this_month integer not null default 0;
+alter table public.accounts add column if not exists device text;

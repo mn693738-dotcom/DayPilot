@@ -169,7 +169,7 @@ function App() {
   const [adminError, setAdminError] = useState('')
   const [adminLoading, setAdminLoading] = useState(false)
   const [adminToken, setAdminToken] = useState('')
-  const [adminOverview, setAdminOverview] = useState<{ totalUsers: number; activeUsers: number; completedTasks: number; totalTasks: number; recentActivity: Array<{ title: string; created_at: string }> } | null>(null)
+  const [adminOverview, setAdminOverview] = useState<{ totalUsers: number; activeUsers: number; averageStreak?: number; activeDays?: number; completedTasks: number; totalTasks: number; recentActivity: Array<{ title: string; created_at: string }> } | null>(null)
   const [dateReminders, setDateReminders] = useState<DateReminder[]>(() => {
     const saved = window.localStorage.getItem('daypilot-reminders')
     return saved ? JSON.parse(saved) : []
@@ -255,11 +255,21 @@ function App() {
       void fetch(`${API_BASE_URL}/api/account/data`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${accountToken}` },
-        body: JSON.stringify({ tasks, dateReminders, importantReminders, notes, shoppingItems, theme }),
+        body: JSON.stringify({
+          tasks,
+          dateReminders,
+          importantReminders,
+          notes,
+          shoppingItems,
+          theme,
+          activeStreak,
+          activeDaysThisMonth,
+          device: navigator.userAgent,
+        }),
       })
     }, 500)
     return () => window.clearTimeout(timer)
-  }, [accountToken, accountReady, dateReminders, importantReminders, notes, shoppingItems, tasks, theme])
+  }, [accountToken, accountReady, activeDaysThisMonth, activeStreak, dateReminders, importantReminders, notes, shoppingItems, tasks, theme])
 
   useEffect(() => {
     window.localStorage.setItem('daypilot-reminders', JSON.stringify(dateReminders))
@@ -377,6 +387,8 @@ function App() {
   useEffect(() => {
     if (adminAuthenticated && adminToken) {
       void loadAdminOverview()
+      const refresh = window.setInterval(() => void loadAdminOverview(), 10000)
+      return () => window.clearInterval(refresh)
     }
   }, [adminAuthenticated, adminToken])
 
@@ -417,7 +429,8 @@ function App() {
           <section className="admin-stat-grid">
             <article className="panel admin-stat"><Users size={19} /><span>Total users</span><strong>{adminOverview?.totalUsers ?? '—'}</strong></article>
             <article className="panel admin-stat"><Activity size={19} /><span>Active users</span><strong>{adminOverview?.activeUsers ?? '—'}</strong></article>
-            <article className="panel admin-stat"><ShieldCheck size={19} /><span>Daily streak tasks</span><strong>{adminOverview ? `${adminOverview.completedTasks}/${adminOverview.totalTasks}` : '—'}</strong></article>
+            <article className="panel admin-stat"><Flame size={19} /><span>Average streak</span><strong>{adminOverview?.averageStreak ?? '—'}</strong></article>
+            <article className="panel admin-stat"><ShieldCheck size={19} /><span>Completed tasks</span><strong>{adminOverview ? `${adminOverview.completedTasks}/${adminOverview.totalTasks}` : '—'}</strong></article>
           </section>
           <section className="panel admin-activity">
             <div className="section-heading"><h3>Recent activity</h3><Settings size={17} /></div>
