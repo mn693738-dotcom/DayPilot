@@ -272,6 +272,18 @@ function App() {
   }, [accountToken, accountReady, activeDaysThisMonth, activeStreak, dateReminders, importantReminders, notes, shoppingItems, tasks, theme])
 
   useEffect(() => {
+    if (!isLoggedIn || sessionMode !== 'temporary' || !username) return
+    const timer = window.setTimeout(() => {
+      void fetch(`${API_BASE_URL}/api/temporary/users`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username }),
+      })
+    }, 500)
+    return () => window.clearTimeout(timer)
+  }, [activeDaysThisMonth, activeStreak, dateReminders, importantReminders, isLoggedIn, notes, sessionMode, shoppingItems, tasks, theme, username])
+
+  useEffect(() => {
     window.localStorage.setItem('daypilot-reminders', JSON.stringify(dateReminders))
   }, [dateReminders])
 
@@ -622,6 +634,12 @@ function App() {
         setAccountReady(true)
       } else {
         await new Promise((resolve) => window.setTimeout(resolve, 650))
+        const response = await fetch(`${API_BASE_URL}/api/temporary/users`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username: cleanUsername }),
+        })
+        if (!response.ok) throw new Error('Unable to register temporary session')
       }
       setUsername(cleanUsername)
       setIsLoggedIn(true)
@@ -1380,8 +1398,8 @@ function App() {
                 <Bell size={18} />
                 <span>Reminders</span>
               </div>
-              <strong>3</strong>
-              <small>High-priority due soon</small>
+              <strong>{importantReminders.length + dateReminders.length}</strong>
+              <small>Saved reminders</small>
             </article>
 
             <article className="panel stat-card">

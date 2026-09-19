@@ -289,6 +289,20 @@ button:active:not(:disabled) {
   opacity: 0.45;
 }
 
+.login-card > .ghost-button {
+  display: block;
+  margin: 12px auto 0;
+  background: transparent;
+  color: var(--gold-bright);
+  transition: transform 0.25s var(--ease-premium), box-shadow 0.25s ease, background 0.25s ease, color 0.25s ease;
+}
+
+.login-card > .ghost-button:hover {
+  background: rgba(212, 175, 106, 0.12);
+  color: var(--gold-bright);
+  box-shadow: 0 9px 18px rgba(0, 0, 0, 0.16);
+}
+
 .session-choice-list {
   display: grid;
   gap: 10px;

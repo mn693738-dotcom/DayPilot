@@ -15,6 +15,13 @@ export async function initDb() {
     await db.exec(sql);
   }
 
+  const userColumns = await db.all<{ name: string }[]>("PRAGMA table_info(users)");
+  const existingColumns = new Set(userColumns.map((column) => column.name));
+  if (!existingColumns.has("username")) await db.exec("ALTER TABLE users ADD COLUMN username TEXT");
+  if (!existingColumns.has("session_type")) await db.exec("ALTER TABLE users ADD COLUMN session_type TEXT NOT NULL DEFAULT 'temporary'");
+  if (!existingColumns.has("last_active_at")) await db.exec("ALTER TABLE users ADD COLUMN last_active_at DATETIME");
+  await db.exec("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)");
+
   return db;
 }
 

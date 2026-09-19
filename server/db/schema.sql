@@ -6,8 +6,12 @@ CREATE TABLE IF NOT EXISTS users (
   id TEXT PRIMARY KEY,
   name TEXT,
   email TEXT UNIQUE,
+  username TEXT,
+  session_type TEXT NOT NULL DEFAULT 'temporary',
+  last_active_at DATETIME,
   created_at DATETIME DEFAULT CURRENT_TIMESTAMP
 );
+
 
 CREATE TABLE IF NOT EXISTS tasks (
   id INTEGER PRIMARY KEY AUTOINCREMENT,

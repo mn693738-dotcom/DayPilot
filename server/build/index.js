@@ -129,6 +129,22 @@ async function start() {
             res.status(503).json({ error: "Cloud account storage is unavailable" });
         }
     });
+    app.post("/api/temporary/users", async (req, res) => {
+        const username = typeof req.body?.username === "string" ? req.body.username.trim() : "";
+        if (!/^[a-zA-Z0-9_]{3,32}$/.test(username)) {
+            res.status(400).json({ error: "Username is invalid" });
+            return;
+        }
+        const now = new Date().toISOString();
+        const existing = await db.get("SELECT id FROM users WHERE username = ?", username);
+        if (existing) {
+            await db.run("UPDATE users SET name = ?, session_type = 'temporary', last_active_at = ? WHERE id = ?", username, now, existing.id);
+        }
+        else {
+            await db.run("INSERT INTO users (id, name, username, session_type, last_active_at) VALUES (?, ?, ?, 'temporary', ?)", crypto_1.default.randomUUID(), username, username, now);
+        }
+        res.json({ saved: true });
+    });
     app.get("/api/account/data", async (req, res) => {
         const session = accountSession(req, res);
         if (!session)
@@ -220,6 +236,7 @@ async function start() {
     app.get("/api/admin/overview", async (req, res) => {
         if (!requireAdmin(req, res))
             return;
+        const temporaryUsers = await db.all("SELECT username, last_active_at FROM users WHERE session_type = 'temporary' AND username IS NOT NULL ORDER BY last_active_at DESC");
         if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
             const [accounts, dataRows] = await Promise.all([
                 supabaseRequest("accounts?select=username,streak,active_days_this_month,last_active_at,device&order=last_active_at.desc"),
@@ -231,13 +248,20 @@ async function start() {
                 created_at: row.updated_at,
             }));
             res.json({
-                totalUsers: accounts.length,
-                activeUsers: accounts.filter((account) => account.last_active_at && Date.parse(account.last_active_at) >= activeSince).length,
+                totalUsers: accounts.length + temporaryUsers.length,
+                activeUsers: accounts.filter((account) => account.last_active_at && Date.parse(account.last_active_at) >= activeSince).length
+                    + temporaryUsers.filter((user) => user.last_active_at && Date.parse(user.last_active_at) >= activeSince).length,
                 averageStreak: accounts.length ? Math.round(accounts.reduce((sum, account) => sum + (account.streak || 0), 0) / accounts.length) : 0,
                 activeDays: accounts.reduce((sum, account) => sum + (account.active_days_this_month || 0), 0),
                 completedTasks: dataRows.reduce((sum, row) => sum + (row.data.tasks?.filter((task) => task.done).length || 0), 0),
                 totalTasks: dataRows.reduce((sum, row) => sum + (row.data.tasks?.length || 0), 0),
-                recentActivity,
+                recentActivity: [
+                    ...temporaryUsers.slice(0, 8).map((user) => ({
+                        title: `${user.username} started a temporary session`,
+                        created_at: user.last_active_at || new Date().toISOString(),
+                    })),
+                    ...recentActivity,
+                ].slice(0, 8),
                 devices: accounts.map((account) => ({ username: account.username, device: account.device || "unknown" })),
             });
             return;
